@@ -10,6 +10,7 @@
 #include <random>
 #include <algorithm>
 #include <chrono>
+#include <map>
 
 using namespace std;
 using namespace sf;
@@ -19,6 +20,21 @@ class TextureManager {
 
     public:
         static Texture& getTexture(string textureName);
+};
+
+class Timer {
+    public:
+        Timer();
+        void start();
+        void pause();
+        void resume();
+        int getElapsedSeconds();
+
+    private:
+        chrono::time_point<chrono::high_resolution_clock> startTime;
+        chrono::time_point<chrono::high_resolution_clock> pauseTime;
+        int elapsedPausedTime;
+        bool paused;
 };
 
 class Board {
@@ -54,6 +70,9 @@ class Board {
         vector<vector<bool>> mines;
         vector<vector<bool>> minesRevealed;
         vector<Sprite> flagSprites;
+        map<int, Sprite> digitsMap;
+        map<int, Sprite> parseDigits(Sprite digits);
+        RenderWindow& gameWindow;
         void initializeBoard();
         void handleLeftMouseClick(int mouseX, int mouseY);
         void handleRightMouseClick(int mouseX, int mouseY);
@@ -71,6 +90,7 @@ class Board {
         int tileRows;
         int tileCols;
         int mineCount;
+        Timer timer;
 };
 
 #endif //MINESWEEPER_BOARD_H

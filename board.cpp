@@ -17,9 +17,40 @@ Texture& TextureManager::getTexture(string textureName) {
         return result->second;
     }
 }
+//Timer definition and functions
+Timer::Timer() : elapsedPausedTime(0), paused(false) {}
+
+void Timer::start() {
+    startTime = chrono::high_resolution_clock::now();
+}
+
+void Timer::pause() {
+    paused = true;
+    pauseTime = chrono::high_resolution_clock::now();
+}
+
+void Timer::resume() {
+    paused = false;
+    auto unPausedTime = chrono::high_resolution_clock::now();
+    elapsedPausedTime += chrono::duration_cast<chrono::seconds>(unPausedTime - pauseTime).count();
+}
+
+int Timer::getElapsedSeconds() {
+    if (paused) {
+        return elapsedPausedTime;
+    } else {
+        auto gameDuration = chrono::duration_cast<chrono::seconds>(chrono::high_resolution_clock::now() - startTime);
+        return gameDuration.count() - elapsedPausedTime;
+    }
+}
 
 Board::Board(RenderWindow& window) : gameWindow(window), rd(), gen(rd()) {
     initializeBoard();
+    digitsText = TextureManager::getTexture("digits");
+    Sprite digits;
+    digits.setTexture(digitsText);
+    digitsMap = parseDigits(digits);
+    timer.start();
 }
 
 void Board::initializeBoard() {
@@ -148,6 +179,32 @@ void Board::draw() {
         loseSprite.setPosition(((tileCols / 2.f) * 32) - 32, (32 * (tileRows + 0.5)));
         gameWindow.draw(loseSprite);
     }
+
+
+    int total_time = timer.getElapsedSeconds();
+    int minutes = total_time / 60;
+    int seconds = total_time % 60;
+
+    // Calculate positions based on the provided layout
+    int minutesX0 = (tileCols * 32) - 97;
+    int minutesX1 = minutesX0 + 21;
+    int secondsX0 = (tileCols * 32) - 54;
+    int secondsX1 = secondsX0 + 21;
+    int digitsY = 32 * (tileRows + 0.5) + 16;
+
+    // Draw the timer digits on the window
+    digitsMap[minutes / 10].setPosition(minutesX0, digitsY);
+    gameWindow.draw(digitsMap[minutes / 10]);
+
+    digitsMap[minutes % 10].setPosition(minutesX1, digitsY);
+    gameWindow.draw(digitsMap[minutes % 10]);
+
+    digitsMap[seconds / 10].setPosition(secondsX0, digitsY);
+    gameWindow.draw(digitsMap[seconds / 10]);
+
+    digitsMap[seconds % 10].setPosition(secondsX1, digitsY);
+    gameWindow.draw(digitsMap[seconds % 10]);
+
 
     Sprite pauseSprite(pauseText);
     pauseSprite.setPosition((tileCols * 32) - 240, 32 * (tileRows + 0.5));
@@ -356,6 +413,9 @@ void Board::debugGame() {
 }
 
 void Board::resetGame() {
+    //reset timer
+    timer.start();
+
     // Clear flagSprites
     flagSprites.clear();
 
@@ -411,4 +471,17 @@ Texture& Board::getNumberTexture(int count) {
         case 8:
             return num8Text;
     }
+}
+
+map<int, Sprite> Board::parseDigits(Sprite digits) {
+    map<int, Sprite> digitsMap;
+
+    for (int i = 0; i < 10; i++) {
+        IntRect rect(i * 21, 0, 21, 32);
+        digits.setTextureRect(rect);
+        Sprite sprite = digits;
+        digitsMap.emplace(i, sprite);
+    }
+
+    return digitsMap;
 }
