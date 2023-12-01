@@ -101,9 +101,9 @@ void WelcomeWindow::update() {
 }
 
 void WelcomeWindow::setText(Text &text, float x, float y) {
-     FloatRect textRect = text.getLocalBounds();
-     text.setOrigin(textRect.left + textRect.width/2.0,textRect.top + textRect.height/2.0f);
-     text.setPosition(Vector2f(x, y));
+    FloatRect textRect = text.getLocalBounds();
+    text.setOrigin(textRect.left + textRect.width/2.0,textRect.top + textRect.height/2.0f);
+    text.setPosition(Vector2f(x, y));
 }
 
 void WelcomeWindow::draw() {
@@ -138,3 +138,4 @@ void WelcomeWindow::openGameWindow() {
         }
     }
 }
+
