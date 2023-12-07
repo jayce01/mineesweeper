@@ -7,6 +7,7 @@
 #include <string>
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <random>
 #include <algorithm>
 #include <chrono>
@@ -22,33 +23,31 @@ class TextureManager {
         static Texture& getTexture(string textureName);
 };
 
-class Timer {
-    public:
-        Timer();
-        void start();
-        void pause();
-        void resume();
-        int getElapsedSeconds();
-
-    private:
-        chrono::time_point<chrono::high_resolution_clock> startTime;
-        chrono::time_point<chrono::high_resolution_clock> pauseTime;
-        int elapsedPausedTime;
-        bool paused;
-};
-
 class Board {
     public:
         Board(RenderWindow& window);
         void draw();
         void handleInput();
+        void drawGameTimer(RenderWindow& window);
+        void startTimer();
+        void updateTimer();
+        void drawLeaderBoard();
+        bool checkWinCondition();
+        enum class GameState {PLAYING, LOST, WIN, PAUSE};
+        GameState gameState = GameState::PLAYING;
+        GameState previousGameState;
+        GameState toggleGameStateInPlay;
     private:
+        Text leaderboard;
+        Font font;
+        RenderWindow leaderboardWindow;
         random_device rd;
         mt19937 gen;
         Texture tileHiddenText;
         Texture tileRevealedText;
         Texture faceHappyText;
         Texture faceLoseText;
+        Texture faceWinText;
         Texture pauseText;
         Texture debugText;
         Texture leaderText;
@@ -77,20 +76,33 @@ class Board {
         void handleLeftMouseClick(int mouseX, int mouseY);
         void handleRightMouseClick(int mouseX, int mouseY);
         void setTileFlagged(int row, int col, bool flagged);
+        void setText(Text &text, float x, float y);
         void placeMines();
         void revealTile(int row, int col);
         void debugGame();
         void resetGame();
         bool isResetButtonClicked(int mouseX, int mouseY);
         bool isDebugButtonClicked(int mouseX, int mouseY);
+        bool isPauseButtonClicked(int mouseX, int mouseY);
+        bool isPlayButtonClicked(int mouseX, int mouseY);
+        bool isLeaderButtonClicked(int mouseX, int mouseY);
         bool isTileFlagged(int row, int col);
+        bool checkRemainingTileCount();
         int countAdjacentMines(int row, int col);
-        enum class GameState {PLAYING, LOST, WIN, PAUSE};
-        GameState gameState = GameState::PLAYING;
+        chrono::time_point<chrono::high_resolution_clock> startTime;
+        chrono::high_resolution_clock::time_point pausedTime;
         int tileRows;
         int tileCols;
         int mineCount;
-        Timer timer;
+        int mineCounter;
+        bool paused;
+        int minutes;
+        int seconds;
+        long elapsedPausedTime;
+        bool isGamePaused;
+        int tileRevealedCounter;
+        float screenHeight;
+        float screenWidth;
 };
 
 #endif //MINESWEEPER_BOARD_H

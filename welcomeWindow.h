@@ -14,11 +14,12 @@ class WelcomeWindow {
         WelcomeWindow();
         void run();
         string getEnteredName();
+        Font font;
+        void setText(Text &text, float x, float y);
 
     private:
         RenderWindow window;
         RenderWindow gameWindow;
-        Font font;
         Text welcomeText;
         Text name;
         Text nameText;
@@ -37,7 +38,6 @@ class WelcomeWindow {
         void draw();
         void openGameWindow();
         void getScreenSize();
-        void setText(Text &text, float x, float y);
 };
 
 #endif // WELCOME_WINDOW_H

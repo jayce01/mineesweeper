@@ -124,8 +124,13 @@ void WelcomeWindow::openGameWindow() {
         gameWindow.create(VideoMode(screenWidth, screenHeight), "Minesweeper", Style::Close);
         Board board(gameWindow);
         window.close();
+        board.startTimer();
         while (gameWindow.isOpen()){
             gameWindow.clear(Color::White);
+            if(board.checkWinCondition()){
+                board.gameState = Board::GameState::WIN;
+            }
+            board.updateTimer();
             board.handleInput();
             board.draw();
             Event gameEvent;

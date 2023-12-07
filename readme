@@ -1,0 +1,10 @@
+1 Name: Jayce Corcoran
+2 Section: 11948
+3 UFL email: jaycecorcoran@gmail.com
+4 System: Windows
+5 Compiler: Clang
+6 SFML version: 2.5.1
+7 IDE: Clion
+8 Other notes: Click reset button twice after winning or losing timer will update after second click -- idk why
+               Leaderboard does not take in or display any data since the functions arent there
+               Win time is not stored anywhere

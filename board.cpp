@@ -1,3 +1,6 @@
+//problems;need win condition and finished lb
+//win does not pull up leaderboard
+
 #include "board.h"
 #include "welcomeWindow.h"
 
@@ -17,40 +20,14 @@ Texture& TextureManager::getTexture(string textureName) {
         return result->second;
     }
 }
-//Timer definition and functions
-Timer::Timer() : elapsedPausedTime(0), paused(false) {}
 
-void Timer::start() {
-    startTime = chrono::high_resolution_clock::now();
-}
-
-void Timer::pause() {
-    paused = true;
-    pauseTime = chrono::high_resolution_clock::now();
-}
-
-void Timer::resume() {
-    paused = false;
-    auto unPausedTime = chrono::high_resolution_clock::now();
-    elapsedPausedTime += chrono::duration_cast<chrono::seconds>(unPausedTime - pauseTime).count();
-}
-
-int Timer::getElapsedSeconds() {
-    if (paused) {
-        return elapsedPausedTime;
-    } else {
-        auto gameDuration = chrono::duration_cast<chrono::seconds>(chrono::high_resolution_clock::now() - startTime);
-        return gameDuration.count() - elapsedPausedTime;
-    }
-}
-
-Board::Board(RenderWindow& window) : gameWindow(window), rd(), gen(rd()) {
+Board::Board(RenderWindow& window) : gameWindow(window), rd(), gen(rd()), paused(false), isGamePaused(false), elapsedPausedTime(0) {
     initializeBoard();
+    mineCounter = mineCount;
     digitsText = TextureManager::getTexture("digits");
     Sprite digits;
     digits.setTexture(digitsText);
     digitsMap = parseDigits(digits);
-    timer.start();
 }
 
 void Board::initializeBoard() {
@@ -63,7 +40,11 @@ void Board::initializeBoard() {
 
     faceLoseText = TextureManager::getTexture("face_lose");
 
+    faceWinText = TextureManager::getTexture("face_win");
+
     pauseText = TextureManager::getTexture("pause");
+
+    playText = TextureManager::getTexture("play");
 
     debugText = TextureManager::getTexture("debug");
 
@@ -111,104 +92,163 @@ void Board::initializeBoard() {
 }
 
 void Board::draw() {
-    // Draw revealed tiles and mines
-    for (int i = 0; i < tileRows; ++i) {
-        for (int j = 0; j < tileCols; ++j) {
-            if (mines[i][j]) {
-                // Draw revealed tile background
+    // Draw revealed tiles and mines when the game is not paused
+    if (gameState != GameState::PAUSE) {
+        for (int i = 0; i < tileRows; ++i) {
+            for (int j = 0; j < tileCols; ++j) {
+                if (mines[i][j]) {
+                    // Draw revealed tile background
+                    Sprite revealedSprite(tileRevealedText);
+                    revealedSprite.setPosition(j * 32.f, i * 32.f);
+                    gameWindow.draw(revealedSprite);
+                    if (!flaggedTiles[i][j]) {
+                        // Draw mine on top of revealed tile if tile is not flagged
+                        Sprite mineSprite(mineText);
+                        mineSprite.setPosition(j * 32.f, i * 32.f);
+                        gameWindow.draw(mineSprite);
+                    }
+                }
+                else if (minesRevealed[i][j]) {
+                    // Draw revealed tile
+                    Sprite revealedSprite(tileRevealedText);
+                    revealedSprite.setPosition(j * 32.f, i * 32.f);
+                    gameWindow.draw(revealedSprite);
+                }
+                else if (gameBoard[i][j].getTexture() == &tileRevealedText) {
+                    // Draw revealed tile
+                    gameWindow.draw(gameBoard[i][j]);
+
+                    // Draw number if count is greater than 0
+                    int adjacentMines = countAdjacentMines(i, j);
+                    if (adjacentMines > 0) {
+                        // Load the appropriate number texture
+                        Texture& numberTexture = getNumberTexture(adjacentMines);
+
+                        // Create a sprite and draw the number
+                        Sprite numberSprite(numberTexture);
+                        numberSprite.setPosition(j * 32.f, i * 32.f);
+                        gameWindow.draw(numberSprite);
+                    }
+                }
+            }
+        }
+        // Draw hidden tiles
+        for (int i = 0; i < tileRows; ++i) {
+            for (int j = 0; j < tileCols; ++j) {
+                if (!minesRevealed[i][j] && gameBoard[i][j].getTexture() == &tileHiddenText) {
+                    // Draw hidden tile
+                    gameWindow.draw(gameBoard[i][j]);
+                }
+            }
+        }
+        // Draw flags
+        for (const auto& flagSprite : flagSprites) {
+            gameWindow.draw(flagSprite);
+        }
+    }
+    else {
+        // Draw all tiles as revealed when the game is paused
+        for (int i = 0; i < tileRows; ++i) {
+            for (int j = 0; j < tileCols; ++j) {
+                // Draw revealed tile
                 Sprite revealedSprite(tileRevealedText);
                 revealedSprite.setPosition(j * 32.f, i * 32.f);
                 gameWindow.draw(revealedSprite);
-                if(!flaggedTiles[i][j]) {
-                    // Draw mine on top of revealed tile if tile is not flagged
-                    Sprite mineSprite(mineText);
-                    mineSprite.setPosition(j * 32.f, i * 32.f);
-                    gameWindow.draw(mineSprite);
-                }
-            }
-            else if (minesRevealed[i][j]) {
-                // Draw revealed tile
-                Sprite revealedSprite(tileRevealedText);
-                revealedSprite.setPosition(j * 32.f, i * 32.f);
-                gameWindow.draw(revealedSprite);
-            }
-            else if (gameBoard[i][j].getTexture() == &tileRevealedText) {
-                // Draw revealed tile
-                gameWindow.draw(gameBoard[i][j]);
-
-                // Draw number if count is greater than 0
-                int adjacentMines = countAdjacentMines(i, j);
-                if (adjacentMines > 0) {
-                    // Load the appropriate number texture
-                    Texture& numberTexture = getNumberTexture(adjacentMines);
-
-                    // Create a sprite and draw the number
-                    Sprite numberSprite(numberTexture);
-                    numberSprite.setPosition(j * 32.f, i * 32.f);
-                    gameWindow.draw(numberSprite);
-                }
-            } else if (gameBoard[i][j].getTexture() == &tileRevealedText) {
-                // Draw revealed tile
-                gameWindow.draw(gameBoard[i][j]);
             }
         }
     }
 
-    // Draw hidden tiles
-    for (int i = 0; i < tileRows; ++i) {
-        for (int j = 0; j < tileCols; ++j) {
-            if (!minesRevealed[i][j] && gameBoard[i][j].getTexture() == &tileHiddenText) {
-                // Draw hidden tile
-                gameWindow.draw(gameBoard[i][j]);
-            }
-        }
-    }
+    drawLeaderBoard();
 
-    // Draw flags
-    for (const auto& flagSprite : flagSprites) {
-        gameWindow.draw(flagSprite);
-    }
+    //draw timer
+    drawGameTimer(gameWindow);
 
     if(gameState == GameState::PLAYING){
         Sprite faceHappySprite(faceHappyText);
         faceHappySprite.setPosition(((tileCols / 2.f) * 32) - 32, (32 * (tileRows + 0.5)));
         gameWindow.draw(faceHappySprite);
+
+        Sprite pauseSprite(pauseText);
+        pauseSprite.setPosition((tileCols * 32) - 240, 32 * (tileRows + 0.5));
+        gameWindow.draw(pauseSprite);
     }
     else if(gameState == GameState::LOST) {
+        Sprite pauseSprite(pauseText);
+        pauseSprite.setPosition((tileCols * 32) - 240, 32 * (tileRows + 0.5));
+        gameWindow.draw(pauseSprite);
+
         Sprite loseSprite(faceLoseText);
         loseSprite.setPosition(((tileCols / 2.f) * 32) - 32, (32 * (tileRows + 0.5)));
         gameWindow.draw(loseSprite);
+
+
     }
 
+    else if(gameState == GameState::PAUSE) {
+        Sprite playSprite(playText);
+        playSprite.setPosition((tileCols * 32) - 240, 32 * (tileRows + 0.5));
+        gameWindow.draw(playSprite);
 
-    int total_time = timer.getElapsedSeconds();
-    int minutes = total_time / 60;
-    int seconds = total_time % 60;
+        Sprite faceHappySprite(faceHappyText);
+        faceHappySprite.setPosition(((tileCols / 2.f) * 32) - 32, (32 * (tileRows + 0.5)));
+        gameWindow.draw(faceHappySprite);
+    }
+    else if(gameState == GameState::WIN) {
+        Sprite pauseSprite(pauseText);
+        pauseSprite.setPosition((tileCols * 32) - 240, 32 * (tileRows + 0.5));
+        gameWindow.draw(pauseSprite);
 
-    // Calculate positions based on the provided layout
-    int minutesX0 = (tileCols * 32) - 97;
-    int minutesX1 = minutesX0 + 21;
-    int secondsX0 = (tileCols * 32) - 54;
-    int secondsX1 = secondsX0 + 21;
-    int digitsY = 32 * (tileRows + 0.5) + 16;
+        Sprite faceWinSprite(faceWinText);
+        faceWinSprite.setPosition(((tileCols / 2.f) * 32) - 32, (32 * (tileRows + 0.5)));
+        gameWindow.draw(faceWinSprite);
 
-    // Draw the timer digits on the window
-    digitsMap[minutes / 10].setPosition(minutesX0, digitsY);
-    gameWindow.draw(digitsMap[minutes / 10]);
+        drawLeaderBoard();
+    }
 
-    digitsMap[minutes % 10].setPosition(minutesX1, digitsY);
-    gameWindow.draw(digitsMap[minutes % 10]);
+    // Draw mine counter
+    int counterX = 33;
+    int counterY = 32 * (tileRows + 0.5) + 16;
 
-    digitsMap[seconds / 10].setPosition(secondsX0, digitsY);
-    gameWindow.draw(digitsMap[seconds / 10]);
+    // Convert mineCounter to a string for easier manipulation
+    string mineCounterString = to_string(abs(mineCounter));
 
-    digitsMap[seconds % 10].setPosition(secondsX1, digitsY);
-    gameWindow.draw(digitsMap[seconds % 10]);
+    // Calculate the number of leading zeros needed
+    int numLeadingZeros = max(3 - static_cast<int>(mineCounterString.length()), 0);
 
+    // Draw leading zeros for negative mineCounter
+    if (mineCounter < 0) {
+        digitsMap[0].setPosition(counterX, counterY);
+        gameWindow.draw(digitsMap[0]);
+        counterX += 21;
+        numLeadingZeros--;  // Decrease the count of remaining leading zeros
+    }
 
-    Sprite pauseSprite(pauseText);
-    pauseSprite.setPosition((tileCols * 32) - 240, 32 * (tileRows + 0.5));
-    gameWindow.draw(pauseSprite);
+// Draw remaining leading zeros
+    for (int i = 0; i < numLeadingZeros; ++i) {
+        digitsMap[0].setPosition(counterX, counterY);
+        gameWindow.draw(digitsMap[0]);
+        counterX += 21;
+    }
+
+    if (mineCounter >= 0) {
+        // Draw positive counter digits
+        for (int digit : to_string(mineCounter)) {
+            digitsMap[digit - '0'].setPosition(counterX, counterY);
+            gameWindow.draw(digitsMap[digit - '0']);
+            counterX += 21;
+        }
+    }
+    else {
+        // Draw negative counter
+        digitsMap[-1].setPosition(12, 32 * (tileRows + 0.5) + 16);
+        gameWindow.draw(digitsMap[-1]);
+
+        for (int digit : to_string(-mineCounter)) {
+            digitsMap[digit - '0'].setPosition(counterX, counterY);
+            gameWindow.draw(digitsMap[digit - '0']);
+            counterX += 21;
+        }
+    }
 
     Sprite debugSprite(debugText);
     debugSprite.setPosition((tileCols * 32) - 304, 32 * (tileRows + 0.5));
@@ -225,7 +265,19 @@ void Board::handleInput() {
     while (gameWindow.pollEvent(event)) {
         if (event.type == Event::Closed) {
             gameWindow.close();
-        } else if (event.type == Event::MouseButtonPressed) {
+        }
+        else if (event.type == Event::MouseButtonPressed && paused && (isPlayButtonClicked(event.mouseButton.x, event.mouseButton.y) ||
+                                                             isLeaderButtonClicked(event.mouseButton.x, event.mouseButton.y) ||
+                                                             isDebugButtonClicked(event.mouseButton.x, event.mouseButton.y) ||
+                                                             isResetButtonClicked(event.mouseButton.x, event.mouseButton.y))) {
+            if (event.mouseButton.button == Mouse::Left) {
+                handleLeftMouseClick(event.mouseButton.x, event.mouseButton.y);
+            }
+            else if (event.mouseButton.button == Mouse::Right) {
+                handleRightMouseClick(event.mouseButton.x, event.mouseButton.y);
+            }
+        }
+        else if(event.type == Event::MouseButtonPressed && !paused && !leaderboardWindow.isOpen()) {
             if (event.mouseButton.button == Mouse::Left) {
                 handleLeftMouseClick(event.mouseButton.x, event.mouseButton.y);
             }
@@ -273,18 +325,38 @@ void Board::handleLeftMouseClick(int mouseX, int mouseY) {
     // Check if the reset button is clicked
     if (isResetButtonClicked(mouseX, mouseY)) {
         resetGame();  // Call a function to reset the game
+        mineCounter = mineCount;
         gameState = GameState::PLAYING;
+        paused = false;
+        startTimer();
         return;
     }
 
-    if (gameState == GameState::PLAYING) {
-        if (isDebugButtonClicked(mouseX, mouseY)) {
+    auto pauseTime = chrono::high_resolution_clock::now();
+    if(gameState == GameState::PLAYING){
+        if(isDebugButtonClicked(mouseX, mouseY)) {
             debugGame();
         }
     }
+    if (gameState == GameState::PLAYING) {
+        if (isPauseButtonClicked(mouseX, mouseY)) {
+            //Toggle the paused state
+            paused = !paused;
+            isGamePaused = true;
+            // If paused, stop the timer; if unpaused, start the timer
+            if (paused) {
+                gameState = GameState::PAUSE; // Stop the timer
+                pausedTime = chrono::high_resolution_clock::now();
+            }
+        }
+    }
 
-    if (gameState == GameState::LOST) {
-        return;
+    else if(gameState == GameState::PAUSE){
+        if(isPlayButtonClicked(mouseX, mouseY)){
+            auto unPausedTime = chrono::steady_clock::now();
+            gameState = GameState::PLAYING;
+            paused = false;
+        }
     }
 
     if (row >= 0 && row < tileRows && col >= 0 && col < tileCols) {
@@ -300,10 +372,31 @@ void Board::handleLeftMouseClick(int mouseX, int mouseY) {
                     }
                 }
                 gameState = GameState::LOST;
-            } else {
+            }
+            else {
                 revealTile(row, col);
+                tileRevealedCounter++;
             }
         }
+
+    }
+
+
+    if(isLeaderButtonClicked(mouseX, mouseY)) {
+        if(gameState == GameState::LOST) {
+            previousGameState = GameState::LOST;
+        }
+        if(gameState == GameState::PLAYING) {
+            paused = !paused;
+        }
+        // If paused, stop the timer; if unpaused, start the timer
+        if (paused) {
+            gameState = GameState::PAUSE; // Stop the timer
+            pausedTime = chrono::high_resolution_clock::now();
+        }
+        screenHeight = (tileRows * 16) + 50;
+        screenWidth = (tileCols * 16);
+        leaderboardWindow.create(VideoMode(screenWidth, screenHeight), "Leaderboard");
     }
 }
 
@@ -314,7 +407,7 @@ void Board::handleRightMouseClick(int mouseX, int mouseY) {
         return;
     }
 
-    if (row >= 0 && row < tileRows && col >= 0 && col < tileCols) {
+    if (row >= 0 && row < tileRows && col >= 0 && col < tileCols && gameState == GameState::PLAYING && !paused) {
         if (gameBoard[row][col].getTexture() == &tileHiddenText) {
             // Right-click on a hidden tile: place or remove flag
             if (!isTileFlagged(row, col)) {
@@ -322,6 +415,7 @@ void Board::handleRightMouseClick(int mouseX, int mouseY) {
                 flagSprite.setPosition(col * 32.f, row * 32.f);
                 flagSprites.push_back(flagSprite);
                 setTileFlagged(row, col, true);
+                mineCounter--;
             } else {
                 // Remove flag
                 flagSprites.erase(
@@ -329,6 +423,7 @@ void Board::handleRightMouseClick(int mouseX, int mouseY) {
                             return flagSprite.getPosition().x == col * 32.f && flagSprite.getPosition().y == row * 32.f;
                         }),flagSprites.end());
                 setTileFlagged(row, col, false);
+                mineCounter++;
             }
         }
     }
@@ -401,20 +496,21 @@ bool Board::isDebugButtonClicked(int mouseX, int mouseY) {
 }
 
 void Board::debugGame() {
-    // Iterate through all tiles
+// Iterate through all tiles
     for (int i = 0; i < tileRows; ++i) {
         for (int j = 0; j < tileCols; ++j) {
             // If the tile has a hidden mine, reveal it
-            if (mines[i][j] && !minesRevealed[i][j]) {
-                minesRevealed[i][j] = true;
+            if (mines[i][j] && !paused && !flaggedTiles[i][j]) {
+                minesRevealed[i][j] = !minesRevealed[i][j];
             }
         }
     }
 }
 
+
 void Board::resetGame() {
     //reset timer
-    timer.start();
+    startTimer();
 
     // Clear flagSprites
     flagSprites.clear();
@@ -476,6 +572,12 @@ Texture& Board::getNumberTexture(int count) {
 map<int, Sprite> Board::parseDigits(Sprite digits) {
     map<int, Sprite> digitsMap;
 
+    // Add an entry for the negative sign
+    IntRect rectNegative(10 * 21, 0, 21, 32);
+    digits.setTextureRect(rectNegative);
+    Sprite spriteNegative = digits;
+    digitsMap.emplace(-1, spriteNegative);
+
     for (int i = 0; i < 10; i++) {
         IntRect rect(i * 21, 0, 21, 32);
         digits.setTextureRect(rect);
@@ -484,4 +586,152 @@ map<int, Sprite> Board::parseDigits(Sprite digits) {
     }
 
     return digitsMap;
+}
+
+bool Board::isPauseButtonClicked(int mouseX, int mouseY) {
+    float buttonX = ((tileCols) * 32) - 240;
+    float buttonY = (32 * (tileRows + 0.5));
+    float buttonWidth = pauseText.getSize().x;
+    float buttonHeight = pauseText.getSize().y;
+
+    return mouseX >= buttonX && mouseX <= buttonX + buttonWidth &&
+           mouseY >= buttonY && mouseY <= buttonY + buttonHeight;
+}
+
+bool Board::isPlayButtonClicked(int mouseX, int mouseY) {
+    float buttonX = ((tileCols) * 32) - 240;
+    float buttonY = (32 * (tileRows + 0.5));
+    float buttonWidth = playText.getSize().x;
+    float buttonHeight = playText.getSize().y;
+
+    return mouseX >= buttonX && mouseX <= buttonX + buttonWidth &&
+           mouseY >= buttonY && mouseY <= buttonY + buttonHeight;
+}
+
+void Board::updateTimer() {
+    auto currentGameTime = chrono::high_resolution_clock::now();
+
+    if(gameState == GameState::PLAYING){
+        startTime += chrono::seconds(elapsedPausedTime);
+        elapsedPausedTime = 0;
+        auto totalGameDuration = chrono::duration_cast<chrono::seconds>(currentGameTime - startTime);
+        long overallTotalTime = totalGameDuration.count();
+        minutes = overallTotalTime / 60;
+        seconds = overallTotalTime % 60;
+    }
+    else {
+        elapsedPausedTime = chrono::duration_cast<chrono::seconds>(currentGameTime - pausedTime).count();
+    }
+}
+
+void Board::startTimer() {
+    startTime = chrono::high_resolution_clock::now();
+}
+
+void Board::drawGameTimer(RenderWindow& window) {
+    // Calculate positions based on the provided layout
+    int minutesX0 = (tileCols * 32) - 97;
+    int minutesX1 = minutesX0 + 21;
+    int secondsX0 = (tileCols * 32) - 54;
+    int secondsX1 = secondsX0 + 21;
+    int digitsY = 32 * (tileRows + 0.5) + 16;
+
+    // Draw the timer digits on the window
+    digitsMap[minutes / 10].setPosition(minutesX0, digitsY);
+    gameWindow.draw(digitsMap[minutes / 10]);
+
+    digitsMap[minutes % 10].setPosition(minutesX1, digitsY);
+    gameWindow.draw(digitsMap[minutes % 10]);
+
+    digitsMap[seconds / 10].setPosition(secondsX0, digitsY);
+    gameWindow.draw(digitsMap[seconds / 10]);
+
+    digitsMap[seconds % 10].setPosition(secondsX1, digitsY);
+    gameWindow.draw(digitsMap[seconds % 10]);
+}
+
+void Board::drawLeaderBoard() {
+    if(gameState == GameState::PLAYING){
+       toggleGameStateInPlay = GameState::PLAYING;
+       previousGameState = toggleGameStateInPlay;
+       isGamePaused = false;
+    }
+
+    if (leaderboardWindow.isOpen()) {
+        Event event;
+        bool closeWindow = false;
+        while (leaderboardWindow.pollEvent(event)) {
+            if (event.type == Event::Closed) {
+                closeWindow = true;
+            }
+        }
+        if (closeWindow) {
+            leaderboardWindow.close();
+            //leaderBoardClickedBool = false;
+            gameState = previousGameState;
+            if(isGamePaused)
+            {
+                gameState = GameState::PAUSE;
+            }
+            else
+            {
+                paused = false;
+            }
+        }
+        leaderboard.setString("LEADERBOARD");
+        font.loadFromFile("files/font.ttf");
+        leaderboard.setCharacterSize(20);
+        leaderboard.setFillColor(Color::White);
+        leaderboard.setFont(font);
+        leaderboard.setStyle(Text::Underlined | Text::Bold);
+        setText(leaderboard, screenWidth / 2.f, (screenHeight / 2.f) - 120);
+        leaderboardWindow.clear(Color::Blue);
+        leaderboardWindow.draw(leaderboard);
+        leaderboardWindow.display();
+    }
+}
+
+bool Board::isLeaderButtonClicked(int mouseX, int mouseY) {
+    float buttonX = (tileCols * 32) - 176;
+    float buttonY = (32 * (tileRows + 0.5));
+    float buttonWidth = leaderText.getSize().x;
+    float buttonHeight = leaderText.getSize().y;
+
+    return mouseX >= buttonX && mouseX <= buttonX + buttonWidth &&
+           mouseY >= buttonY && mouseY <= buttonY + buttonHeight;
+}
+//need to fix if all revealed tiles that arent mines are cleared
+bool Board::checkWinCondition() {
+    bool win = true;
+    for (int i = 0; i < tileRows; ++i) {
+        for (int j = 0; j < tileCols; ++j) {
+            if (!mines[i][j] && gameBoard[i][j].getTexture() == &tileHiddenText) {
+                win = false ;
+                return win;
+            }
+        }
+    }
+    for (int i = 0; i < tileRows; ++i) {
+        for (int j = 0; j < tileCols; ++j) {
+            if (mines[i][j] && !flaggedTiles[i][j]) {
+                if (win) {
+
+                    // Set the tile as flagged
+                    Sprite flagSprite(flagText);
+                    flagSprite.setPosition(j * 32.f, i * 32.f);
+                    flagSprites.push_back(flagSprite);
+                    setTileFlagged(i, j, true);
+                    mineCounter--;
+                }
+            }
+        }
+    }
+    win = true;
+    return win;
+}
+
+void Board::setText(Text &text, float x, float y) {
+    FloatRect textRect = text.getLocalBounds();
+    text.setOrigin(textRect.left + textRect.width / 2.0, textRect.top + textRect.height / 2.0f);
+    text.setPosition(Vector2f(x, y));
 }
